@@ -670,7 +670,7 @@
         }
 
         console.log("[LoveKey] call window.Android.postAction(...payload)", payload);
-        window.Android.postAction.apply(window.Android, payload);
+        window.Android.postAction(...payload);
         return "Android window.Android.postAction(...payload)";
       }
 
