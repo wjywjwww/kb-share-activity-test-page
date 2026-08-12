@@ -184,13 +184,22 @@
       box-shadow: 0 8px 18px rgba(249, 115, 22, 0.22);
     }
 
-    .scene-control {
+    .scene-control,
+    .mode-control {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
     }
 
-    .scene-control label {
+    .scene-control {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mode-control {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .scene-control label,
+    .mode-control label {
       min-height: 42px;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -202,13 +211,15 @@
       font-weight: 700;
     }
 
-    .scene-control input {
+    .scene-control input,
+    .mode-control input {
       position: absolute;
       opacity: 0;
       pointer-events: none;
     }
 
-    .scene-control label.active {
+    .scene-control label.active,
+    .mode-control label.active {
       border-color: rgba(249, 115, 22, 0.68);
       background: #ffedd5;
       color: var(--brand-dark);
@@ -304,6 +315,10 @@
       .debug-row {
         flex-direction: column;
       }
+
+      .mode-control {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
   </style>
 </head>
@@ -339,6 +354,25 @@
           </label>
         </div>
 
+        <div class="mode-control" aria-label="调用模式">
+          <label>
+            <input type="radio" name="bridgeMode" value="auto" checked>
+            自动
+          </label>
+          <label>
+            <input type="radio" name="bridgeMode" value="ios">
+            iOS
+          </label>
+          <label>
+            <input type="radio" name="bridgeMode" value="android-multi">
+            安卓多参
+          </label>
+          <label>
+            <input type="radio" name="bridgeMode" value="android-json">
+            安卓JSON
+          </label>
+        </div>
+
         <button id="shareButton" class="share-button" type="button">分享当前活动</button>
 
         <div class="result" aria-live="polite">
@@ -359,6 +393,8 @@
           <span>shareActivityCallback(result)</span>
           <strong>分享场景</strong>
           <span id="sceneText">微信好友 scene=0</span>
+          <strong>调用方式</strong>
+          <span id="modeText">自动</span>
           <strong>桥接状态</strong>
           <span id="bridgeText">检测中</span>
         </div>
@@ -381,12 +417,26 @@
       var payloadView = document.getElementById("payloadView");
       var bridgeText = document.getElementById("bridgeText");
       var sceneText = document.getElementById("sceneText");
+      var modeText = document.getElementById("modeText");
       var shareButton = document.getElementById("shareButton");
       var simulateSuccess = document.getElementById("simulateSuccess");
       var simulateFail = document.getElementById("simulateFail");
       var sceneInputs = Array.prototype.slice.call(document.querySelectorAll("input[name='scene']"));
+      var bridgeModeInputs = Array.prototype.slice.call(document.querySelectorAll("input[name='bridgeMode']"));
+      var androidBridgeNames = [
+        "Android",
+        "android",
+        "NativeBridge",
+        "nativeBridge",
+        "JSBridge",
+        "jsBridge",
+        "App",
+        "app",
+        "LoveKey",
+        "lovekey"
+      ];
 
-      function hasNativeBridge() {
+      function hasIOSBridge() {
         return Boolean(
           window.webkit &&
           window.webkit.messageHandlers &&
@@ -395,11 +445,90 @@
         );
       }
 
+      function getAndroidPostActionBridge() {
+        var globalPostAction = window.postAction;
+        if (typeof globalPostAction === "function") {
+          return {
+            label: "Android window.postAction(...)",
+            fn: globalPostAction,
+            receiver: window
+          };
+        }
+
+        for (var i = 0; i < androidBridgeNames.length; i += 1) {
+          var name = androidBridgeNames[i];
+          var bridge = window[name];
+          if (bridge && typeof bridge.postAction === "function") {
+            return {
+              label: "Android window." + name + ".postAction(...)",
+              fn: bridge.postAction,
+              receiver: bridge
+            };
+          }
+        }
+
+        return null;
+      }
+
+      function getAndroidPostMessageBridge() {
+        if (window.postAction && typeof window.postAction.postMessage === "function") {
+          return {
+            label: "Android window.postAction.postMessage(...)",
+            fn: window.postAction.postMessage,
+            receiver: window.postAction
+          };
+        }
+
+        return null;
+      }
+
+      function getWebViewJavascriptBridge() {
+        if (window.WebViewJavascriptBridge && typeof window.WebViewJavascriptBridge.callHandler === "function") {
+          return window.WebViewJavascriptBridge;
+        }
+
+        return null;
+      }
+
+      function detectBridgeLabels() {
+        var labels = [];
+        if (hasIOSBridge()) {
+          labels.push("iOS WKWebView");
+        }
+
+        var androidPostAction = getAndroidPostActionBridge();
+        if (androidPostAction) {
+          labels.push(androidPostAction.label);
+        }
+
+        var androidPostMessage = getAndroidPostMessageBridge();
+        if (androidPostMessage) {
+          labels.push(androidPostMessage.label);
+        }
+
+        if (getWebViewJavascriptBridge()) {
+          labels.push("WebViewJavascriptBridge.callHandler");
+        }
+
+        if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === "function") {
+          labels.push("ReactNativeWebView.postMessage");
+        }
+
+        return labels;
+      }
+
       function selectedScene() {
         var selected = sceneInputs.find(function (input) {
           return input.checked;
         });
         return selected ? selected.value : "0";
+      }
+
+      function selectedBridgeMode() {
+        var selected = bridgeModeInputs.find(function (input) {
+          return input.checked;
+        });
+        return selected ? selected.value : "auto";
       }
 
       function updateSceneText() {
@@ -410,6 +539,28 @@
             input.parentElement.classList.toggle("active", input.checked);
           }
         });
+      }
+
+      function updateModeText() {
+        var mode = selectedBridgeMode();
+        var textMap = {
+          auto: "自动检测",
+          ios: "强制 iOS WKWebView",
+          "android-multi": "强制 Android 多参数",
+          "android-json": "强制 Android JSON"
+        };
+
+        modeText.textContent = textMap[mode] || "自动检测";
+        bridgeModeInputs.forEach(function (input) {
+          if (input.parentElement) {
+            input.parentElement.classList.toggle("active", input.checked);
+          }
+        });
+      }
+
+      function updateBridgeText() {
+        var labels = detectBridgeLabels();
+        bridgeText.textContent = labels.length > 0 ? labels.join(" / ") : "浏览器预览模式";
       }
 
       function setResult(type, title, text, raw) {
@@ -443,26 +594,142 @@
         ];
       }
 
-      function postAction(payload) {
-        payloadView.textContent = JSON.stringify(payload, null, 2);
+      function payloadObject(payload) {
+        return {
+          action: payload[0],
+          shareURL: payload[1],
+          title: payload[2],
+          imageURL: payload[3],
+          description: payload[4],
+          scene: payload[5]
+        };
+      }
 
-        if (!hasNativeBridge()) {
-          setResult(
-            "fail",
-            "未检测到 native bridge",
-            "当前环境没有 window.webkit.messageHandlers.postAction，请在 App 的 KBBannerWebController 中打开此页面测试。",
-            payload
-          );
+      function sendIOS(payload) {
+        if (!hasIOSBridge()) {
           return false;
         }
 
         window.webkit.messageHandlers.postAction.postMessage(payload);
+        return "iOS WKWebView";
+      }
+
+      function sendAndroidMulti(payload) {
+        var bridge = getAndroidPostActionBridge();
+        if (!bridge) {
+          return false;
+        }
+
+        bridge.fn.apply(bridge.receiver, payload);
+        return bridge.label;
+      }
+
+      function sendAndroidJSON(payload) {
+        var bridge = getAndroidPostActionBridge();
+        if (bridge) {
+          bridge.fn.call(bridge.receiver, JSON.stringify(payload));
+          return bridge.label + " JSON";
+        }
+
+        var postMessageBridge = getAndroidPostMessageBridge();
+        if (postMessageBridge) {
+          postMessageBridge.fn.call(postMessageBridge.receiver, JSON.stringify(payload));
+          return postMessageBridge.label + " JSON";
+        }
+
+        return false;
+      }
+
+      function sendAndroidArrayPostMessage(payload) {
+        var bridge = getAndroidPostMessageBridge();
+        if (!bridge) {
+          return false;
+        }
+
+        bridge.fn.call(bridge.receiver, payload);
+        return bridge.label;
+      }
+
+      function sendWebViewJavascriptBridge(payload) {
+        var bridge = getWebViewJavascriptBridge();
+        if (!bridge) {
+          return false;
+        }
+
+        bridge.callHandler("postAction", payloadObject(payload));
+        return "WebViewJavascriptBridge.callHandler";
+      }
+
+      function sendReactNativeWebView(payload) {
+        if (!window.ReactNativeWebView || typeof window.ReactNativeWebView.postMessage !== "function") {
+          return false;
+        }
+
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          handler: "postAction",
+          payload: payloadObject(payload)
+        }));
+        return "ReactNativeWebView.postMessage";
+      }
+
+      function postAction(payload) {
+        var mode = selectedBridgeMode();
+        var sender = false;
+        var sendError = "";
+
+        try {
+          if (mode === "ios") {
+            sender = sendIOS(payload);
+          } else if (mode === "android-multi") {
+            sender = sendAndroidMulti(payload);
+          } else if (mode === "android-json") {
+            sender = sendAndroidJSON(payload);
+          } else {
+            sender = sendIOS(payload) ||
+              sendAndroidMulti(payload) ||
+              sendAndroidArrayPostMessage(payload) ||
+              sendWebViewJavascriptBridge(payload) ||
+              sendReactNativeWebView(payload);
+          }
+        } catch (error) {
+          sendError = error && error.message ? error.message : String(error);
+        }
+
+        payloadView.textContent = JSON.stringify({
+          mode: mode,
+          sender: sender || null,
+          payload: payload,
+          payloadObject: payloadObject(payload),
+          detectedBridges: detectBridgeLabels(),
+          error: sendError || null
+        }, null, 2);
+
+        if (!sender) {
+          setResult(
+            "fail",
+            "未检测到 native bridge",
+            "当前环境没有检测到 iOS 或 Android 的 postAction bridge，请在 App WebView 中打开，或切换调用模式后重试。",
+            {
+              mode: mode,
+              payload: payload,
+              detectedBridges: detectBridgeLabels(),
+              error: sendError || null
+            }
+          );
+          return false;
+        }
+
+        updateBridgeText();
+        setResult("pending", "已发起分享", "已通过 " + sender + " 调用 postAction，等待 native 分享结果回调。", {
+          mode: mode,
+          sender: sender,
+          payload: payload
+        });
         return true;
       }
 
       function shareActivity() {
         var payload = buildPayload();
-        setResult("pending", "已发起分享", "已调用 postAction，等待 native 分享结果回调。", payload);
         postAction(payload);
       }
 
@@ -538,12 +805,20 @@
       sceneInputs.forEach(function (input) {
         input.addEventListener("change", updateSceneText);
       });
+      bridgeModeInputs.forEach(function (input) {
+        input.addEventListener("change", updateModeText);
+      });
 
       document.getElementById("activityTitle").textContent = config.title;
       document.getElementById("activityDesc").textContent = config.description;
-      bridgeText.textContent = hasNativeBridge() ? "已连接 postAction" : "浏览器预览模式";
       updateSceneText();
-      payloadView.textContent = JSON.stringify(buildPayload(), null, 2);
+      updateModeText();
+      updateBridgeText();
+      payloadView.textContent = JSON.stringify({
+        payload: buildPayload(),
+        payloadObject: payloadObject(buildPayload()),
+        detectedBridges: detectBridgeLabels()
+      }, null, 2);
     })();
   </script>
 </body>
