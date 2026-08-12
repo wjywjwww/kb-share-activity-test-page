@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="theme-color" content="#fff7ed">
+  <meta property="og:title" content="LoveKey 七夕限时活动">
+  <meta property="og:description" content="邀请好友打开活动页，测试 KBBannerWebController 的 shareActivity 分享链路。">
+  <meta property="og:image" content="assets/share-thumb.png">
+  <title>LoveKey 活动分享测试</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #6b7280;
+      --line: #eadfd3;
+      --panel: #ffffff;
+      --soft: #fff7ed;
+      --brand: #f97316;
+      --brand-dark: #c2410c;
+      --teal: #0f766e;
+      --red: #dc2626;
+      --shadow: 0 18px 42px rgba(33, 38, 56, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(249, 115, 22, 0.14), transparent 34rem),
+        linear-gradient(180deg, #fff7ed 0%, #f8fafc 54%, #ecfeff 100%);
+      color: var(--ink);
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    .page {
+      width: min(100%, 560px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: max(18px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .hero {
+      padding-top: 10px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--brand-dark);
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 8vw, 42px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .activity {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .poster {
+      min-height: 210px;
+      padding: 22px;
+      background:
+        linear-gradient(135deg, rgba(15, 118, 110, 0.18), transparent 45%),
+        linear-gradient(150deg, #fff7ed 0%, #fed7aa 52%, #ccfbf1 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 26px;
+    }
+
+    .poster-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .pill {
+      min-height: 30px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.74);
+      color: #7c2d12;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status {
+      min-width: 92px;
+      min-height: 30px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(23, 32, 51, 0.82);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .status.success {
+      background: var(--teal);
+    }
+
+    .status.fail {
+      background: var(--red);
+    }
+
+    .poster-title {
+      max-width: 390px;
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.16;
+      font-weight: 850;
+    }
+
+    .poster-desc {
+      max-width: 420px;
+      margin: 10px 0 0;
+      color: #374151;
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .panel {
+      padding: 18px;
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 14px;
+    }
+
+    .share-button {
+      width: 100%;
+      min-height: 54px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--brand);
+      color: #ffffff;
+      font-size: 17px;
+      font-weight: 800;
+      box-shadow: 0 12px 24px rgba(249, 115, 22, 0.26);
+      cursor: pointer;
+    }
+
+    .share-button:active {
+      transform: translateY(1px);
+      box-shadow: 0 8px 18px rgba(249, 115, 22, 0.22);
+    }
+
+    .scene-control {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .scene-control label {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: #475569;
+      background: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .scene-control input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .scene-control label.active {
+      border-color: rgba(249, 115, 22, 0.68);
+      background: #ffedd5;
+      color: var(--brand-dark);
+    }
+
+    .result {
+      min-height: 72px;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffaf5;
+    }
+
+    .result-title {
+      margin: 0 0 5px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #334155;
+    }
+
+    .result-text {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .debug {
+      display: grid;
+      gap: 10px;
+      padding: 16px 0 0;
+    }
+
+    .debug-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .debug-button {
+      flex: 1;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .payload {
+      margin: 0;
+      max-height: 210px;
+      overflow: auto;
+      padding: 12px;
+      border-radius: 8px;
+      background: #111827;
+      color: #d1fae5;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: 82px minmax(0, 1fr);
+      gap: 8px 10px;
+      padding: 14px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .meta strong {
+      color: #334155;
+    }
+
+    @media (max-width: 380px) {
+      .page {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      .poster {
+        padding: 18px;
+      }
+
+      .poster-title {
+        font-size: 26px;
+      }
+
+      .debug-row {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero" aria-labelledby="pageTitle">
+      <p class="eyebrow">KBBannerWebController</p>
+      <h1 id="pageTitle">活动分享测试</h1>
+      <p class="subtitle">点击按钮后调用 native 的 <strong>postAction</strong>，等待 App 分享完成后回调页面更新状态。</p>
+    </section>
+
+    <section class="activity" aria-label="活动分享卡片">
+      <div class="poster">
+        <div class="poster-top">
+          <span class="pill">LoveKey</span>
+          <span id="statusBadge" class="status">待分享</span>
+        </div>
+        <div>
+          <h2 id="activityTitle" class="poster-title">七夕限时活动</h2>
+          <p id="activityDesc" class="poster-desc">邀请好友打开活动页，测试微信分享链路和网页回调 UI。</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="scene-control" aria-label="分享场景">
+          <label>
+            <input type="radio" name="scene" value="0" checked>
+            微信好友
+          </label>
+          <label>
+            <input type="radio" name="scene" value="1">
+            朋友圈
+          </label>
+        </div>
+
+        <button id="shareButton" class="share-button" type="button">分享当前活动</button>
+
+        <div class="result" aria-live="polite">
+          <p id="resultTitle" class="result-title">当前状态</p>
+          <p id="resultText" class="result-text">页面已加载，等待分享操作。</p>
+        </div>
+
+        <div class="debug" aria-label="调试面板">
+          <div class="debug-row">
+            <button id="simulateSuccess" class="debug-button" type="button">模拟成功回调</button>
+            <button id="simulateFail" class="debug-button" type="button">模拟失败回调</button>
+          </div>
+          <pre id="payloadView" class="payload">[]</pre>
+        </div>
+
+        <div class="meta">
+          <strong>回调函数</strong>
+          <span>shareActivityCallback(result)</span>
+          <strong>分享场景</strong>
+          <span id="sceneText">微信好友 scene=0</span>
+          <strong>桥接状态</strong>
+          <span id="bridgeText">检测中</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var config = {
+        title: "LoveKey 七夕限时活动",
+        description: "邀请好友打开活动页，测试 KBBannerWebController 的 shareActivity 分享链路。",
+        imageURL: new URL("assets/share-thumb.png", window.location.href).href,
+        shareURL: window.location.origin + window.location.pathname
+      };
+
+      var statusBadge = document.getElementById("statusBadge");
+      var resultTitle = document.getElementById("resultTitle");
+      var resultText = document.getElementById("resultText");
+      var payloadView = document.getElementById("payloadView");
+      var bridgeText = document.getElementById("bridgeText");
+      var sceneText = document.getElementById("sceneText");
+      var shareButton = document.getElementById("shareButton");
+      var simulateSuccess = document.getElementById("simulateSuccess");
+      var simulateFail = document.getElementById("simulateFail");
+      var sceneInputs = Array.prototype.slice.call(document.querySelectorAll("input[name='scene']"));
+
+      function hasNativeBridge() {
+        return Boolean(
+          window.webkit &&
+          window.webkit.messageHandlers &&
+          window.webkit.messageHandlers.postAction &&
+          window.webkit.messageHandlers.postAction.postMessage
+        );
+      }
+
+      function selectedScene() {
+        var selected = sceneInputs.find(function (input) {
+          return input.checked;
+        });
+        return selected ? selected.value : "0";
+      }
+
+      function updateSceneText() {
+        var scene = selectedScene();
+        sceneText.textContent = scene === "1" ? "朋友圈 scene=1" : "微信好友 scene=0";
+        sceneInputs.forEach(function (input) {
+          if (input.parentElement) {
+            input.parentElement.classList.toggle("active", input.checked);
+          }
+        });
+      }
+
+      function setResult(type, title, text, raw) {
+        statusBadge.classList.remove("success", "fail");
+        if (type === "success") {
+          statusBadge.classList.add("success");
+          statusBadge.textContent = "分享成功";
+        } else if (type === "fail") {
+          statusBadge.classList.add("fail");
+          statusBadge.textContent = "分享失败";
+        } else {
+          statusBadge.textContent = "分享中";
+        }
+
+        resultTitle.textContent = title;
+        resultText.textContent = text;
+
+        if (raw !== undefined) {
+          payloadView.textContent = JSON.stringify(raw, null, 2);
+        }
+      }
+
+      function buildPayload() {
+        return [
+          "shareActivity",
+          config.shareURL,
+          config.title,
+          config.imageURL,
+          config.description,
+          selectedScene()
+        ];
+      }
+
+      function postAction(payload) {
+        payloadView.textContent = JSON.stringify(payload, null, 2);
+
+        if (!hasNativeBridge()) {
+          setResult(
+            "fail",
+            "未检测到 native bridge",
+            "当前环境没有 window.webkit.messageHandlers.postAction，请在 App 的 KBBannerWebController 中打开此页面测试。",
+            payload
+          );
+          return false;
+        }
+
+        window.webkit.messageHandlers.postAction.postMessage(payload);
+        return true;
+      }
+
+      function shareActivity() {
+        var payload = buildPayload();
+        setResult("pending", "已发起分享", "已调用 postAction，等待 native 分享结果回调。", payload);
+        postAction(payload);
+      }
+
+      function normalizeResult(raw, fallbackType) {
+        if (raw === undefined || raw === null) {
+          return { type: fallbackType || "success", message: "" };
+        }
+
+        if (typeof raw === "boolean") {
+          return { type: raw ? "success" : "fail", message: "" };
+        }
+
+        if (typeof raw === "string") {
+          var lowered = raw.toLowerCase();
+          var isFail = lowered.indexOf("fail") >= 0 || lowered.indexOf("cancel") >= 0 || lowered.indexOf("error") >= 0 || raw.indexOf("失败") >= 0 || raw.indexOf("取消") >= 0;
+          return {
+            type: isFail ? "fail" : (fallbackType || "success"),
+            message: raw
+          };
+        }
+
+        if (typeof raw === "object") {
+          var success = raw.success;
+          if (success === undefined) {
+            success = raw.isSuccess;
+          }
+          if (success === undefined && raw.code !== undefined) {
+            success = String(raw.code) === "0";
+          }
+          return {
+            type: success === false ? "fail" : (fallbackType || "success"),
+            message: raw.message || raw.msg || raw.desc || "",
+            data: raw
+          };
+        }
+
+        return { type: fallbackType || "success", message: String(raw) };
+      }
+
+      function receiveShareActivityCallback(raw, fallbackType) {
+        var parsed = normalizeResult(raw, fallbackType);
+        var message = parsed.message || (parsed.type === "success" ? "native 已通知页面分享成功。" : "native 已通知页面分享未完成。");
+        setResult(parsed.type, parsed.type === "success" ? "分享回调成功" : "分享回调失败", message, raw);
+      }
+
+      window.callShareActivity = shareActivity;
+      window.shareActivityCallback = function (result) {
+        receiveShareActivityCallback(result, "success");
+      };
+      window.shareActivitySuccess = function (result) {
+        receiveShareActivityCallback(result || { success: true, message: "分享成功" }, "success");
+      };
+      window.shareActivityFail = function (result) {
+        receiveShareActivityCallback(result || { success: false, message: "分享失败或取消" }, "fail");
+      };
+      window.onShareActivityResult = window.shareActivityCallback;
+      window.onShareActivitySuccess = window.shareActivitySuccess;
+      window.onShareActivityFail = window.shareActivityFail;
+      window.nativeShareActivityCallback = window.shareActivityCallback;
+      window.KBBannerWebController = {
+        shareActivityCallback: window.shareActivityCallback,
+        shareActivitySuccess: window.shareActivitySuccess,
+        shareActivityFail: window.shareActivityFail
+      };
+
+      shareButton.addEventListener("click", shareActivity);
+      simulateSuccess.addEventListener("click", function () {
+        window.shareActivitySuccess({ success: true, message: "模拟：分享成功" });
+      });
+      simulateFail.addEventListener("click", function () {
+        window.shareActivityFail({ success: false, message: "模拟：分享失败或取消" });
+      });
+      sceneInputs.forEach(function (input) {
+        input.addEventListener("change", updateSceneText);
+      });
+
+      document.getElementById("activityTitle").textContent = config.title;
+      document.getElementById("activityDesc").textContent = config.description;
+      bridgeText.textContent = hasNativeBridge() ? "已连接 postAction" : "浏览器预览模式";
+      updateSceneText();
+      payloadView.textContent = JSON.stringify(buildPayload(), null, 2);
+    })();
+  </script>
+</body>
+</html>
