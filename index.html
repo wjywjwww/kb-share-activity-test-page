@@ -9,6 +9,7 @@
   <meta property="og:description" content="邀请好友打开活动页，测试 KBBannerWebController 的 shareActivity 分享链路。">
   <meta property="og:image" content="assets/share-thumb.png">
   <title>LoveKey 活动分享测试</title>
+  <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
   <style>
     :root {
       color-scheme: light;
@@ -179,9 +180,30 @@
       cursor: pointer;
     }
 
-    .share-button:active {
+    .android-share-button {
+      width: 100%;
+      min-height: 50px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--teal);
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 800;
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.22);
+      cursor: pointer;
+    }
+
+    .share-button:active,
+    .android-share-button:active {
       transform: translateY(1px);
+    }
+
+    .share-button:active {
       box-shadow: 0 8px 18px rgba(249, 115, 22, 0.22);
+    }
+
+    .android-share-button:active {
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.18);
     }
 
     .scene-control,
@@ -374,6 +396,7 @@
         </div>
 
         <button id="shareButton" class="share-button" type="button">分享当前活动</button>
+        <button id="androidShareButton" class="android-share-button" type="button">安卓分享当前活动</button>
 
         <div class="result" aria-live="polite">
           <p id="resultTitle" class="result-title">当前状态</p>
@@ -404,6 +427,13 @@
 
   <script>
     (function () {
+      if (window.VConsole) {
+        window.vConsole = window.vConsole || new window.VConsole();
+        console.log("[LoveKey] vConsole enabled");
+      } else {
+        console.warn("[LoveKey] vConsole script not loaded");
+      }
+
       var config = {
         title: "LoveKey 七夕限时活动",
         description: "邀请好友打开活动页，测试 KBBannerWebController 的 shareActivity 分享链路。",
@@ -419,6 +449,7 @@
       var sceneText = document.getElementById("sceneText");
       var modeText = document.getElementById("modeText");
       var shareButton = document.getElementById("shareButton");
+      var androidShareButton = document.getElementById("androidShareButton");
       var simulateSuccess = document.getElementById("simulateSuccess");
       var simulateFail = document.getElementById("simulateFail");
       var sceneInputs = Array.prototype.slice.call(document.querySelectorAll("input[name='scene']"));
@@ -515,6 +546,15 @@
         }
 
         return labels;
+      }
+
+      function logBridgeState(stage) {
+        console.log("[LoveKey] " + stage, {
+          userAgent: navigator.userAgent,
+          detectedBridges: detectBridgeLabels(),
+          hasAndroid: Boolean(window.Android && typeof window.Android.postAction === "function"),
+          hasIOS: hasIOSBridge()
+        });
       }
 
       function selectedScene() {
@@ -624,6 +664,16 @@
         return bridge.label;
       }
 
+      function sendAndroidPostActionOnly(payload) {
+        if (!window.Android || typeof window.Android.postAction !== "function") {
+          return false;
+        }
+
+        console.log("[LoveKey] call window.Android.postAction(...payload)", payload);
+        window.Android.postAction.apply(window.Android, payload);
+        return "Android window.Android.postAction(...payload)";
+      }
+
       function sendAndroidJSON(payload) {
         var bridge = getAndroidPostActionBridge();
         if (bridge) {
@@ -677,6 +727,12 @@
         var sender = false;
         var sendError = "";
 
+        console.log("[LoveKey] share button tapped", {
+          mode: mode,
+          payload: payload,
+          payloadObject: payloadObject(payload)
+        });
+
         try {
           if (mode === "ios") {
             sender = sendIOS(payload);
@@ -722,6 +778,57 @@
         updateBridgeText();
         setResult("pending", "已发起分享", "已通过 " + sender + " 调用 postAction，等待 native 分享结果回调。", {
           mode: mode,
+          sender: sender,
+          payload: payload
+        });
+        return true;
+      }
+
+      function shareActivityForAndroid() {
+        var payload = buildPayload();
+        var sender = false;
+        var sendError = "";
+
+        console.log("[LoveKey] android share button tapped", {
+          payload: payload,
+          payloadObject: payloadObject(payload)
+        });
+
+        try {
+          sender = sendAndroidPostActionOnly(payload);
+        } catch (error) {
+          sendError = error && error.message ? error.message : String(error);
+          console.error("[LoveKey] Android postAction failed", error);
+        }
+
+        payloadView.textContent = JSON.stringify({
+          mode: "android-only",
+          sender: sender || null,
+          call: "window.Android.postAction(action, shareURL, title, imageURL, description, scene)",
+          payload: payload,
+          payloadObject: payloadObject(payload),
+          detectedBridges: detectBridgeLabels(),
+          error: sendError || null
+        }, null, 2);
+
+        if (!sender) {
+          setResult(
+            "fail",
+            "未检测到 Android bridge",
+            "当前环境没有 window.Android.postAction 方法，请在安卓 WebView 中打开此页面测试。",
+            {
+              mode: "android-only",
+              payload: payload,
+              detectedBridges: detectBridgeLabels(),
+              error: sendError || null
+            }
+          );
+          return false;
+        }
+
+        updateBridgeText();
+        setResult("pending", "已发起安卓分享", "已调用 window.Android.postAction(...payload)，等待 native 分享结果回调。", {
+          mode: "android-only",
           sender: sender,
           payload: payload
         });
@@ -796,6 +903,7 @@
       };
 
       shareButton.addEventListener("click", shareActivity);
+      androidShareButton.addEventListener("click", shareActivityForAndroid);
       simulateSuccess.addEventListener("click", function () {
         window.shareActivitySuccess({ success: true, message: "模拟：分享成功" });
       });
@@ -814,6 +922,7 @@
       updateSceneText();
       updateModeText();
       updateBridgeText();
+      logBridgeState("page loaded");
       payloadView.textContent = JSON.stringify({
         payload: buildPayload(),
         payloadObject: payloadObject(buildPayload()),
