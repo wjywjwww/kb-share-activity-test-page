@@ -21,6 +21,7 @@
       --brand: #f97316;
       --brand-dark: #c2410c;
       --teal: #0f766e;
+      --harmony: #2563eb;
       --red: #dc2626;
       --shadow: 0 18px 42px rgba(33, 38, 56, 0.12);
     }
@@ -180,21 +181,31 @@
       cursor: pointer;
     }
 
-    .android-share-button {
+    .android-share-button,
+    .harmony-share-button {
       width: 100%;
       min-height: 50px;
       border: 0;
       border-radius: 8px;
-      background: var(--teal);
       color: #ffffff;
       font-size: 16px;
       font-weight: 800;
-      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.22);
       cursor: pointer;
     }
 
+    .android-share-button {
+      background: var(--teal);
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.22);
+    }
+
+    .harmony-share-button {
+      background: var(--harmony);
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+    }
+
     .share-button:active,
-    .android-share-button:active {
+    .android-share-button:active,
+    .harmony-share-button:active {
       transform: translateY(1px);
     }
 
@@ -204,6 +215,10 @@
 
     .android-share-button:active {
       box-shadow: 0 8px 18px rgba(15, 118, 110, 0.18);
+    }
+
+    .harmony-share-button:active {
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
     }
 
     .scene-control,
@@ -217,7 +232,7 @@
     }
 
     .mode-control {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .scene-control label,
@@ -397,10 +412,15 @@
             <input type="radio" name="bridgeMode" value="android-json">
             安卓JSON
           </label>
+          <label>
+            <input type="radio" name="bridgeMode" value="harmony">
+            鸿蒙
+          </label>
         </div>
 
         <button id="shareButton" class="share-button" type="button">分享当前活动</button>
         <button id="androidShareButton" class="android-share-button" type="button">安卓分享当前活动</button>
+        <button id="harmonyShareButton" class="harmony-share-button" type="button">鸿蒙分享当前活动</button>
 
         <div class="result" aria-live="polite">
           <p id="resultTitle" class="result-title">当前状态</p>
@@ -454,6 +474,7 @@
       var modeText = document.getElementById("modeText");
       var shareButton = document.getElementById("shareButton");
       var androidShareButton = document.getElementById("androidShareButton");
+      var harmonyShareButton = document.getElementById("harmonyShareButton");
       var simulateSuccess = document.getElementById("simulateSuccess");
       var simulateFail = document.getElementById("simulateFail");
       var sceneInputs = Array.prototype.slice.call(document.querySelectorAll("input[name='scene']"));
@@ -517,6 +538,15 @@
         return null;
       }
 
+      function getHarmonyPostActionBridge() {
+        var bridge = window.HarmonyOS || window.Harmony || window.harmonyOS || window.harmony;
+        if (bridge && typeof bridge.postAction === "function") {
+          return bridge;
+        }
+
+        return null;
+      }
+
       function getWebViewJavascriptBridge() {
         if (window.WebViewJavascriptBridge && typeof window.WebViewJavascriptBridge.callHandler === "function") {
           return window.WebViewJavascriptBridge;
@@ -529,6 +559,10 @@
         var labels = [];
         if (hasIOSBridge()) {
           labels.push("iOS WKWebView");
+        }
+
+        if (getHarmonyPostActionBridge()) {
+          labels.push("Harmony postAction");
         }
 
         var androidPostAction = getAndroidPostActionBridge();
@@ -556,6 +590,7 @@
         console.log("[LoveKey] " + stage, {
           userAgent: navigator.userAgent,
           detectedBridges: detectBridgeLabels(),
+          hasHarmony: Boolean(getHarmonyPostActionBridge()),
           hasAndroid: Boolean(window.Android && typeof window.Android.postAction === "function"),
           hasIOS: hasIOSBridge()
         });
@@ -592,7 +627,8 @@
           ios: "强制 iOS WKWebView",
           "android-array": "强制 Android 数组单参",
           "android-multi": "强制 Android 多参数",
-          "android-json": "强制 Android JSON"
+          "android-json": "强制 Android JSON",
+          harmony: "强制 HarmonyOS"
         };
 
         modeText.textContent = textMap[mode] || "自动检测";
@@ -674,6 +710,18 @@
         console.log("[LoveKey] call window.Android.postAction(data)", data);
         window.Android.postAction(data);
         return "Android window.Android.postAction(data)";
+      }
+
+      function sendHarmonyPostAction(payload) {
+        var bridge = getHarmonyPostActionBridge();
+        if (!bridge) {
+          return false;
+        }
+
+        var data = buildLovekeyNativeData(payload);
+        console.log("[LoveKey] call (window.HarmonyOS || window.Harmony || window.harmonyOS || window.harmony).postAction(data)", data);
+        bridge.postAction(data);
+        return "Harmony postAction(data)";
       }
 
       function sendAndroidMulti(payload) {
@@ -769,6 +817,8 @@
 
         if (mode === "ios") {
           sender = trySend(sendIOS);
+        } else if (mode === "harmony") {
+          sender = trySend(sendHarmonyPostAction);
         } else if (mode === "android-array") {
           sender = trySend(sendAndroidArrayPostAction);
         } else if (mode === "android-multi") {
@@ -777,6 +827,7 @@
           sender = trySend(sendAndroidJSON);
         } else {
           sender = trySend(sendIOS) ||
+            trySend(sendHarmonyPostAction) ||
             trySend(sendAndroidArrayPostAction) ||
             trySend(sendAndroidMulti) ||
             trySend(sendAndroidArrayPostMessage) ||
@@ -798,7 +849,7 @@
           setResult(
             "fail",
             "未检测到 native bridge",
-            "当前环境没有检测到 iOS 或 Android 的 postAction bridge，请在 App WebView 中打开，或切换调用模式后重试。",
+            "当前环境没有检测到 iOS、Android 或 HarmonyOS 的 postAction bridge，请在 App WebView 中打开，或切换调用模式后重试。",
             {
               mode: mode,
               payload: payload,
@@ -815,6 +866,60 @@
           sender: sender,
           payload: payload,
           androidData: buildLovekeyNativeData(payload)
+        });
+        return true;
+      }
+
+      function shareActivityForHarmony() {
+        var payload = buildPayload();
+        var sender = false;
+        var sendError = "";
+
+        console.log("[LoveKey] harmony share button tapped", {
+          payload: payload,
+          payloadObject: payloadObject(payload)
+        });
+
+        try {
+          sender = sendHarmonyPostAction(payload);
+        } catch (error) {
+          sendError = error && error.message ? error.message : String(error);
+          console.error("[LoveKey] Harmony postAction failed", error);
+        }
+
+        payloadView.textContent = JSON.stringify({
+          mode: "harmony-only",
+          sender: sender || null,
+          call: "(window.HarmonyOS || window.Harmony || window.harmonyOS || window.harmony).postAction(data)",
+          payload: payload,
+          harmonyData: buildLovekeyNativeData(payload),
+          payloadObject: payloadObject(payload),
+          detectedBridges: detectBridgeLabels(),
+          error: sendError || null
+        }, null, 2);
+
+        if (!sender) {
+          setResult(
+            "fail",
+            "未检测到 HarmonyOS bridge",
+            "当前环境没有 HarmonyOS postAction 方法，请在鸿蒙 WebView 中打开此页面测试。",
+            {
+              mode: "harmony-only",
+              payload: payload,
+              harmonyData: buildLovekeyNativeData(payload),
+              detectedBridges: detectBridgeLabels(),
+              error: sendError || null
+            }
+          );
+          return false;
+        }
+
+        updateBridgeText();
+        setResult("pending", "已发起鸿蒙分享", "已调用 HarmonyOS postAction(data)，等待 native 分享结果回调。", {
+          mode: "harmony-only",
+          sender: sender,
+          payload: payload,
+          harmonyData: buildLovekeyNativeData(payload)
         });
         return true;
       }
@@ -921,6 +1026,8 @@
       }
 
       window.callShareActivity = shareActivity;
+      window.callHarmonyShareActivity = shareActivityForHarmony;
+      window.callAndroidShareActivity = shareActivityForAndroid;
       window.shareActivityCallback = function (result) {
         receiveShareActivityCallback(result, "success");
       };
@@ -942,6 +1049,7 @@
 
       shareButton.addEventListener("click", shareActivity);
       androidShareButton.addEventListener("click", shareActivityForAndroid);
+      harmonyShareButton.addEventListener("click", shareActivityForHarmony);
       simulateSuccess.addEventListener("click", function () {
         window.shareActivitySuccess({ success: true, message: "模拟：分享成功" });
       });
