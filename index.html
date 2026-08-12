@@ -386,6 +386,10 @@
             iOS
           </label>
           <label>
+            <input type="radio" name="bridgeMode" value="android-array">
+            安卓数组
+          </label>
+          <label>
             <input type="radio" name="bridgeMode" value="android-multi">
             安卓多参
           </label>
@@ -586,6 +590,7 @@
         var textMap = {
           auto: "自动检测",
           ios: "强制 iOS WKWebView",
+          "android-array": "强制 Android 数组单参",
           "android-multi": "强制 Android 多参数",
           "android-json": "强制 Android JSON"
         };
@@ -634,6 +639,12 @@
         ];
       }
 
+      function buildLovekeyNativeData(payload) {
+        return [payload[0]].concat(payload.slice(1).map(function (item) {
+          return item === undefined || item === null ? "" : item.toString();
+        }));
+      }
+
       function payloadObject(payload) {
         return {
           action: payload[0],
@@ -654,6 +665,17 @@
         return "iOS WKWebView";
       }
 
+      function sendAndroidArrayPostAction(payload) {
+        if (!window.Android || typeof window.Android.postAction !== "function") {
+          return false;
+        }
+
+        var data = buildLovekeyNativeData(payload);
+        console.log("[LoveKey] call window.Android.postAction(data)", data);
+        window.Android.postAction(data);
+        return "Android window.Android.postAction(data)";
+      }
+
       function sendAndroidMulti(payload) {
         var bridge = getAndroidPostActionBridge();
         if (!bridge) {
@@ -669,9 +691,10 @@
           return false;
         }
 
-        console.log("[LoveKey] call window.Android.postAction(...payload)", payload);
-        window.Android.postAction(...payload);
-        return "Android window.Android.postAction(...payload)";
+        var data = buildLovekeyNativeData(payload);
+        console.log("[LoveKey] call window.Android.postAction(data)", data);
+        window.Android.postAction(data);
+        return "Android window.Android.postAction(data)";
       }
 
       function sendAndroidJSON(payload) {
@@ -725,7 +748,18 @@
       function postAction(payload) {
         var mode = selectedBridgeMode();
         var sender = false;
-        var sendError = "";
+        var sendErrors = [];
+
+        function trySend(fn) {
+          try {
+            return fn(payload);
+          } catch (error) {
+            var message = error && error.message ? error.message : String(error);
+            sendErrors.push(message);
+            console.error("[LoveKey] native bridge failed", error);
+            return false;
+          }
+        }
 
         console.log("[LoveKey] share button tapped", {
           mode: mode,
@@ -733,31 +767,31 @@
           payloadObject: payloadObject(payload)
         });
 
-        try {
-          if (mode === "ios") {
-            sender = sendIOS(payload);
-          } else if (mode === "android-multi") {
-            sender = sendAndroidMulti(payload);
-          } else if (mode === "android-json") {
-            sender = sendAndroidJSON(payload);
-          } else {
-            sender = sendIOS(payload) ||
-              sendAndroidMulti(payload) ||
-              sendAndroidArrayPostMessage(payload) ||
-              sendWebViewJavascriptBridge(payload) ||
-              sendReactNativeWebView(payload);
-          }
-        } catch (error) {
-          sendError = error && error.message ? error.message : String(error);
+        if (mode === "ios") {
+          sender = trySend(sendIOS);
+        } else if (mode === "android-array") {
+          sender = trySend(sendAndroidArrayPostAction);
+        } else if (mode === "android-multi") {
+          sender = trySend(sendAndroidMulti);
+        } else if (mode === "android-json") {
+          sender = trySend(sendAndroidJSON);
+        } else {
+          sender = trySend(sendIOS) ||
+            trySend(sendAndroidArrayPostAction) ||
+            trySend(sendAndroidMulti) ||
+            trySend(sendAndroidArrayPostMessage) ||
+            trySend(sendWebViewJavascriptBridge) ||
+            trySend(sendReactNativeWebView);
         }
 
         payloadView.textContent = JSON.stringify({
           mode: mode,
           sender: sender || null,
           payload: payload,
+          androidData: buildLovekeyNativeData(payload),
           payloadObject: payloadObject(payload),
           detectedBridges: detectBridgeLabels(),
-          error: sendError || null
+          errors: sendErrors
         }, null, 2);
 
         if (!sender) {
@@ -769,7 +803,7 @@
               mode: mode,
               payload: payload,
               detectedBridges: detectBridgeLabels(),
-              error: sendError || null
+              errors: sendErrors
             }
           );
           return false;
@@ -779,7 +813,8 @@
         setResult("pending", "已发起分享", "已通过 " + sender + " 调用 postAction，等待 native 分享结果回调。", {
           mode: mode,
           sender: sender,
-          payload: payload
+          payload: payload,
+          androidData: buildLovekeyNativeData(payload)
         });
         return true;
       }
@@ -804,8 +839,9 @@
         payloadView.textContent = JSON.stringify({
           mode: "android-only",
           sender: sender || null,
-          call: "window.Android.postAction(action, shareURL, title, imageURL, description, scene)",
+          call: "window.Android.postAction(data)",
           payload: payload,
+          androidData: buildLovekeyNativeData(payload),
           payloadObject: payloadObject(payload),
           detectedBridges: detectBridgeLabels(),
           error: sendError || null
@@ -819,6 +855,7 @@
             {
               mode: "android-only",
               payload: payload,
+              androidData: buildLovekeyNativeData(payload),
               detectedBridges: detectBridgeLabels(),
               error: sendError || null
             }
@@ -827,10 +864,11 @@
         }
 
         updateBridgeText();
-        setResult("pending", "已发起安卓分享", "已调用 window.Android.postAction(...payload)，等待 native 分享结果回调。", {
+        setResult("pending", "已发起安卓分享", "已调用 window.Android.postAction(data)，等待 native 分享结果回调。", {
           mode: "android-only",
           sender: sender,
-          payload: payload
+          payload: payload,
+          androidData: buildLovekeyNativeData(payload)
         });
         return true;
       }
@@ -925,6 +963,7 @@
       logBridgeState("page loaded");
       payloadView.textContent = JSON.stringify({
         payload: buildPayload(),
+        androidData: buildLovekeyNativeData(buildPayload()),
         payloadObject: payloadObject(buildPayload()),
         detectedBridges: detectBridgeLabels()
       }, null, 2);
