@@ -2,20 +2,78 @@
 
 This is a static GitHub Pages test page for `KBBannerWebController`.
 
-The share button calls:
+The share button builds this payload:
 
 ```js
-window.webkit.messageHandlers.postAction.postMessage([
+[
   "shareActivity",
   shareURL,
   title,
   imageURL,
   description,
   scene
-]);
+]
 ```
 
-Parameter order matches the current Swift implementation:
+The page supports multiple native bridge styles.
+
+iOS WKWebView:
+
+```js
+window.webkit.messageHandlers.postAction.postMessage(payload)
+```
+
+Android WebView array-argument style:
+
+```js
+window.Android.postAction([
+  "shareActivity",
+  shareURL,
+  title,
+  imageURL,
+  description,
+  scene
+])
+```
+
+HarmonyOS array-argument style:
+
+```js
+(window.HarmonyOS || window.Harmony || window.harmonyOS || window.harmony).postAction(data)
+```
+
+Android JSON style:
+
+```js
+window.Android.postAction(JSON.stringify(payload))
+window.NativeBridge.postAction(JSON.stringify(payload))
+window.postAction.postMessage(JSON.stringify(payload))
+```
+
+The page has a bridge mode selector:
+
+- Auto
+- iOS
+- Android array
+- Android multi-argument fallback
+- Android JSON
+- HarmonyOS
+
+The dedicated Android button always calls:
+
+```js
+window.Android.postAction(data)
+```
+
+The dedicated HarmonyOS button always calls:
+
+```js
+(window.HarmonyOS || window.Harmony || window.harmonyOS || window.harmony).postAction(data)
+```
+
+`vConsole` is enabled on the page so Android and iOS WebView logs are visible on device.
+
+iOS parameter order matches the current Swift implementation:
 
 ```swift
 let shareURL = bodys[1]
@@ -53,4 +111,3 @@ The page also exposes these compatible aliases:
 - `window.onShareActivityFail(result)`
 - `window.nativeShareActivityCallback(result)`
 - `window.KBBannerWebController.shareActivityCallback(result)`
-
