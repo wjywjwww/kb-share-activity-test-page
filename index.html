@@ -430,14 +430,13 @@
         <div class="debug" aria-label="调试面板">
           <div class="debug-row">
             <button id="simulateSuccess" class="debug-button" type="button">模拟成功回调</button>
-            <button id="simulateFail" class="debug-button" type="button">模拟失败回调</button>
           </div>
           <pre id="payloadView" class="payload">[]</pre>
         </div>
 
         <div class="meta">
           <strong>回调函数</strong>
-          <span>shareActivityCallback(result)</span>
+          <span>shareActivityCallback()</span>
           <strong>分享场景</strong>
           <span id="sceneText">微信好友 scene=0</span>
           <strong>调用方式</strong>
@@ -476,7 +475,6 @@
       var androidShareButton = document.getElementById("androidShareButton");
       var harmonyShareButton = document.getElementById("harmonyShareButton");
       var simulateSuccess = document.getElementById("simulateSuccess");
-      var simulateFail = document.getElementById("simulateFail");
       var sceneInputs = Array.prototype.slice.call(document.querySelectorAll("input[name='scene']"));
       var bridgeModeInputs = Array.prototype.slice.call(document.querySelectorAll("input[name='bridgeMode']"));
       var androidBridgeNames = [
@@ -861,7 +859,7 @@
         }
 
         updateBridgeText();
-        setResult("pending", "已发起分享", "已通过 " + sender + " 调用 postAction，等待 native 分享结果回调。", {
+        setResult("pending", "已发起分享", "已通过 " + sender + " 调用 postAction，等待 native 分享成功后调用 shareActivityCallback()。", {
           mode: mode,
           sender: sender,
           payload: payload,
@@ -915,7 +913,7 @@
         }
 
         updateBridgeText();
-        setResult("pending", "已发起鸿蒙分享", "已调用 HarmonyOS postAction(data)，等待 native 分享结果回调。", {
+        setResult("pending", "已发起鸿蒙分享", "已调用 HarmonyOS postAction(data)，等待 native 分享成功后调用 shareActivityCallback()。", {
           mode: "harmony-only",
           sender: sender,
           payload: payload,
@@ -969,7 +967,7 @@
         }
 
         updateBridgeText();
-        setResult("pending", "已发起安卓分享", "已调用 window.Android.postAction(data)，等待 native 分享结果回调。", {
+        setResult("pending", "已发起安卓分享", "已调用 window.Android.postAction(data)，等待 native 分享成功后调用 shareActivityCallback()。", {
           mode: "android-only",
           sender: sender,
           payload: payload,
@@ -983,78 +981,30 @@
         postAction(payload);
       }
 
-      function normalizeResult(raw, fallbackType) {
-        if (raw === undefined || raw === null) {
-          return { type: fallbackType || "success", message: "" };
-        }
-
-        if (typeof raw === "boolean") {
-          return { type: raw ? "success" : "fail", message: "" };
-        }
-
-        if (typeof raw === "string") {
-          var lowered = raw.toLowerCase();
-          var isFail = lowered.indexOf("fail") >= 0 || lowered.indexOf("cancel") >= 0 || lowered.indexOf("error") >= 0 || raw.indexOf("失败") >= 0 || raw.indexOf("取消") >= 0;
-          return {
-            type: isFail ? "fail" : (fallbackType || "success"),
-            message: raw
-          };
-        }
-
-        if (typeof raw === "object") {
-          var success = raw.success;
-          if (success === undefined) {
-            success = raw.isSuccess;
-          }
-          if (success === undefined && raw.code !== undefined) {
-            success = String(raw.code) === "0";
-          }
-          return {
-            type: success === false ? "fail" : (fallbackType || "success"),
-            message: raw.message || raw.msg || raw.desc || "",
-            data: raw
-          };
-        }
-
-        return { type: fallbackType || "success", message: String(raw) };
-      }
-
-      function receiveShareActivityCallback(raw, fallbackType) {
-        var parsed = normalizeResult(raw, fallbackType);
-        var message = parsed.message || (parsed.type === "success" ? "native 已通知页面分享成功。" : "native 已通知页面分享未完成。");
-        setResult(parsed.type, parsed.type === "success" ? "分享回调成功" : "分享回调失败", message, raw);
+      function receiveShareActivityCallback() {
+        console.log("[LoveKey] shareActivityCallback() called");
+        setResult("success", "分享回调成功", "native 已调用 shareActivityCallback()，页面已确认分享成功。", {
+          callback: "shareActivityCallback()",
+          success: true,
+          receivedAt: new Date().toISOString()
+        });
       }
 
       window.callShareActivity = shareActivity;
       window.callHarmonyShareActivity = shareActivityForHarmony;
       window.callAndroidShareActivity = shareActivityForAndroid;
-      window.shareActivityCallback = function (result) {
-        receiveShareActivityCallback(result, "success");
-      };
-      window.shareActivitySuccess = function (result) {
-        receiveShareActivityCallback(result || { success: true, message: "分享成功" }, "success");
-      };
-      window.shareActivityFail = function (result) {
-        receiveShareActivityCallback(result || { success: false, message: "分享失败或取消" }, "fail");
-      };
+      window.shareActivityCallback = receiveShareActivityCallback;
       window.onShareActivityResult = window.shareActivityCallback;
-      window.onShareActivitySuccess = window.shareActivitySuccess;
-      window.onShareActivityFail = window.shareActivityFail;
       window.nativeShareActivityCallback = window.shareActivityCallback;
       window.KBBannerWebController = {
-        shareActivityCallback: window.shareActivityCallback,
-        shareActivitySuccess: window.shareActivitySuccess,
-        shareActivityFail: window.shareActivityFail
+        shareActivityCallback: window.shareActivityCallback
       };
 
       shareButton.addEventListener("click", shareActivity);
       androidShareButton.addEventListener("click", shareActivityForAndroid);
       harmonyShareButton.addEventListener("click", shareActivityForHarmony);
       simulateSuccess.addEventListener("click", function () {
-        window.shareActivitySuccess({ success: true, message: "模拟：分享成功" });
-      });
-      simulateFail.addEventListener("click", function () {
-        window.shareActivityFail({ success: false, message: "模拟：分享失败或取消" });
+        window.shareActivityCallback();
       });
       sceneInputs.forEach(function (input) {
         input.addEventListener("change", updateSceneText);
