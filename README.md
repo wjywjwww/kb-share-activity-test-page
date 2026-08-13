@@ -88,26 +88,20 @@ Scene values:
 - `"0"`: WeChat session
 - `"1"`: WeChat timeline
 
-After native share finishes, call one of these page methods to update the UI:
+After native share succeeds, call this page method to update the UI:
 
 ```swift
-webView.evaluateJavaScript("window.shareActivityCallback({success:true,message:'分享成功'})")
-webView.evaluateJavaScript("window.shareActivitySuccess({success:true,message:'分享成功'})")
-webView.evaluateJavaScript("window.shareActivityFail({success:false,message:'分享失败或取消'})")
+webView.evaluateJavaScript("window.shareActivityCallback()")
 ```
 
 The canonical callback is:
 
 ```js
-window.shareActivityCallback(result)
+window.shareActivityCallback()
 ```
 
-The page also exposes these compatible aliases:
+The page also exposes these compatible success aliases:
 
-- `window.shareActivitySuccess(result)`
-- `window.shareActivityFail(result)`
-- `window.onShareActivityResult(result)`
-- `window.onShareActivitySuccess(result)`
-- `window.onShareActivityFail(result)`
-- `window.nativeShareActivityCallback(result)`
-- `window.KBBannerWebController.shareActivityCallback(result)`
+- `window.onShareActivityResult()`
+- `window.nativeShareActivityCallback()`
+- `window.KBBannerWebController.shareActivityCallback()`
